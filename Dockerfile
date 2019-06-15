@@ -14,12 +14,11 @@ ENV PKG_CONFIG_PATH="${CACHE_DIR}/lib64/pkgconfig:${CACHE_DIR}/lib/pkgconfig" \
 WORKDIR /var/task/build
 
 RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-    yum install -y clang build-essential nodejs npm \
+    yum install -y clang nodejs npm python3 tar make pkgconfig file \
         gcc gcc-c++ \
         intltool flex bison shared-mime-info gperf \
 		ninja-build \
         glibc-static --enablerepo=epel && \
-	yum remove -y cmake && \
 	pip3 install --user meson && \
 	curl https://sh.rustup.rs -sSf | sh -s -- -y
 
@@ -49,7 +48,8 @@ ENV CMAKE_VERSION=3.15.0-rc1 \
     LIBJPEG_VERSION=9c \ 
     PANGO_VERSION=1.43.0 \
     PANGO_MINOR_VERSION=1.43 \
-    LIBXML2_VERSION=2.9.9
+    LIBXML2_VERSION=2.9.9 \
+    ZLIB_VERSION=1.2.11
 
 ENV CMAKE_SOURCE=cmake-${CMAKE_VERSION}-Linux-x86_64.sh \
     GLIB_SOURCE=glib-${GLIB_VERSION}.tar.xz \
@@ -69,7 +69,8 @@ ENV CMAKE_SOURCE=cmake-${CMAKE_VERSION}-Linux-x86_64.sh \
     FONTCONFIG_SOURCE=fontconfig-${FONTCONFIG_VERSION}.tar.bz2 \
     LIBJPEG_SOURCE=jpegsrc.v${LIBJPEG_VERSION}.tar.gz \
     PANGO_SOURCE=pango-${PANGO_VERSION}.tar.xz \
-    LIBXML2_SOURCE=libxml2-${LIBXML2_VERSION}.tar.gz
+    LIBXML2_SOURCE=libxml2-${LIBXML2_VERSION}.tar.gz \
+    ZLIB_SOURCE=zlib-${ZLIB_VERSION}.tar.gz
 
 RUN curl -LOf https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/${CMAKE_SOURCE} && \
     curl -LOf https://download.savannah.gnu.org/releases/freetype/${FREETYPE_SOURCE} && \
@@ -90,6 +91,7 @@ RUN curl -LOf https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSIO
     curl -LOf http://ijg.org/files/${LIBJPEG_SOURCE} && \
     curl -LOf https://ftp.gnome.org/pub/GNOME/sources/pango/${PANGO_MINOR_VERSION}/${PANGO_SOURCE} && \
     curl -LOf ftp://xmlsoft.org/libxml2/${LIBXML2_SOURCE} && \
+    curl -LOf https://zlib.net/${ZLIB_SOURCE} && \
     for i in $PWD/*.tar.*; do tar xf $i && rm $i; done
 
 ENV LD_LIBRARY_PATH="/var/task/build/cache/lib64:/var/task/build/cache/lib"
@@ -121,21 +123,13 @@ RUN cd util-linux-* && \
 	make && \
 	make install
 
-# ENV LD_LIBRARY_PATH="/usr/lib64:/usr/lib:/lib"
-# ENV CPPFLAGS="-I/usr/lib64/include -I/usr/lib/include -I${CACHE_DIR}/include -fPIC -static" \
-#     LDFLAGS="-I/usr/lib64 -I/usr/lib -L${CACHE_DIR}/lib -L${CACHE_DIR}/lib64 -static" 
+# Install zlib to be sure, might be possible to remove this
+RUN cd zlib-* && \
+    CFLAGS="-fPIC" CC=clang ./configure --prefix ${CACHE_DIR} --static && \
+    make && \
+    make install
 
-# ENV ZLIB_VERSION=1.2.11
-# ENV ZLIB_SOURCE=zlib-${ZLIB_VERSION}.tar.gz
-
-# RUN curl -LOf https://zlib.net/${ZLIB_SOURCE}
-
-# RUN tar xf ${ZLIB_SOURCE} && \
-#     cd zlib-* && \
-#     CC="gcc -fPIC" ./configure --prefix ${CACHE_DIR} --static && \
-#     make && \
-#     make install
-
+# Remove -static from ldflags
 ENV LDFLAGS="-L${CACHE_DIR}/lib -L${CACHE_DIR}/lib64"
 
 RUN cd libpng-* && \
@@ -180,10 +174,11 @@ RUN cp -r freetype-${FREETYPE_VERSION} /tmp/ && \
 	cd ${FREETYPE_WITHOUT_HB_DIR} && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
         --without-harfbuzz && \
-	MAKEFLAGS="" make && \
+	make && \
 	make install
 
-RUN	cd fontconfig-* && \
+RUN	tar xf fontconfig-2.13.0.tar.bz2 && rm fontconfig-2.13.0.tar.bz2 && \
+    cd fontconfig-* && \
 	./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
         --enable-libxml2 --disable-docs && \
 	make && \
@@ -288,11 +283,13 @@ FROM amazonlinux:2.0.20190508-with-sources AS librsvg
 COPY --from=builder /opt /opt
 COPY cloud.svg /tmp/
 
-RUN rsvg-convert /tmp/cloud.svg > /tmp/cloud.png && \
+RUN yum install -y file && \
+    /opt/bin/rsvg-convert /tmp/cloud.svg > /tmp/cloud.png && \
     if [[ $(file /tmp/cloud.png) != *"PNG"* ]]; then \
         echo "Error: RSVG not working properly"; exit 1; \
     fi && \
-    rm /tmp/cloud.*
+    rm /tmp/cloud.* && \
+    yum remove -y file
 
 ENTRYPOINT "/opt/bin/rsvg-convert"
 
@@ -302,6 +299,7 @@ FROM builder AS node-librsvg-builder
 
 ENV CACHE_DIR=/var/task/build/cache
 ENV PKG_CONFIG_PATH="/opt/lib/pkgconfig:${CACHE_DIR}/lib64/pkgconfig:${CACHE_DIR}/lib/pkgconfig"
+ENV NODE_PATH="/opt/nodejs/node_modules"
 
 RUN npm install node-pre-gyp librsvg-prebuilt --prefix /opt/nodejs --no-package-lock
 
@@ -313,20 +311,24 @@ RUN cd /opt/nodejs/node_modules/librsvg-prebuilt && \
 
 COPY cloud.svg cloud-test.js /tmp/
 
-RUN node /tmp/cloud-test.js && \
+RUN yum install -y file && \
+    node /tmp/cloud-test.js && \
     if [[ $(file /tmp/cloud-node.png) != *"PNG"* ]]; then \
         echo "Error: RSVG not working properly"; exit 1; \
     fi && \
-    rm /tmp/cloud.*
+    rm /tmp/cloud.* && \
+    yum remove -y file
 
-FROM 2.0.20190508-with-sources AS node-librsvg
+FROM amazonlinux:2.0.20190508-with-sources AS node-librsvg
 
 COPY --from=node-librsvg-builder /opt /opt
 
 COPY cloud.svg cloud-test.js /tmp/
 
-RUN node /tmp/cloud-test.js && \
+RUN yum install -y file && \
+    node /tmp/cloud-test.js && \
     if [[ $(file /tmp/cloud-node.png) != *"PNG"* ]]; then \
         echo "Error: RSVG not working properly"; exit 1; \
     fi && \
-    rm /tmp/cloud.*
+    rm /tmp/cloud.* && \
+    yum remove -y file
