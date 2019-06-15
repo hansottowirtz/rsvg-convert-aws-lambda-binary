@@ -206,8 +206,7 @@ RUN	cd libcroco-* && \
 	make && \
 	make install
 
-RUN tar xf ${PIXMAN_SOURCE} && \
-	cd pixman-* && \
+RUN cd pixman-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
         --disable-gtk && \
 	make && \
