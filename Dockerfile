@@ -1,4 +1,4 @@
-FROM lambci/lambda:build-nodejs10.x AS builder
+FROM amazonlinux:2.0.20190508-with-sources AS builder
 
 ENV PROJECT_ROOT=/var/task \
     CACHE_DIR=/var/task/build/cache \
@@ -13,9 +13,12 @@ ENV PKG_CONFIG_PATH="${CACHE_DIR}/lib64/pkgconfig:${CACHE_DIR}/lib/pkgconfig" \
 
 WORKDIR /var/task/build
 
-RUN yum install -y gcc gcc-c++ intltool flex bison shared-mime-info gperf \
+RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+    yum install -y clang build-essential nodejs npm \
+        gcc gcc-c++ \
+        intltool flex bison shared-mime-info gperf \
 		ninja-build \
-        glibc-static && \
+        glibc-static --enablerepo=epel && \
 	yum remove -y cmake && \
 	pip3 install --user meson && \
 	curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -129,7 +132,7 @@ RUN cd util-linux-* && \
 
 # RUN tar xf ${ZLIB_SOURCE} && \
 #     cd zlib-* && \
-#     CC=gcc ./configure --prefix ${CACHE_DIR} --static && \
+#     CC="gcc -fPIC" ./configure --prefix ${CACHE_DIR} --static && \
 #     make && \
 #     make install
 
@@ -280,7 +283,7 @@ RUN	cd librsvg-* && \
 
 ### LibRSVG
 
-FROM lambci/lambda:build-nodejs10.x AS librsvg
+FROM amazonlinux:2.0.20190508-with-sources AS librsvg
 
 COPY --from=builder /opt /opt
 COPY cloud.svg /tmp/
@@ -316,7 +319,7 @@ RUN node /tmp/cloud-test.js && \
     fi && \
     rm /tmp/cloud.*
 
-FROM lambci/lambda:build-nodejs10.x AS node-librsvg
+FROM 2.0.20190508-with-sources AS node-librsvg
 
 COPY --from=node-librsvg-builder /opt /opt
 
