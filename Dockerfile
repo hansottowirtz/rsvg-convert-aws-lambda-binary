@@ -86,7 +86,8 @@ RUN curl -LOf https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSIO
     curl -LOf https://www.freedesktop.org/software/fontconfig/release/${FONTCONFIG_SOURCE} && \
     curl -LOf http://ijg.org/files/${LIBJPEG_SOURCE} && \
     curl -LOf https://ftp.gnome.org/pub/GNOME/sources/pango/${PANGO_MINOR_VERSION}/${PANGO_SOURCE} && \
-    curl -LOf ftp://xmlsoft.org/libxml2/${LIBXML2_SOURCE}
+    curl -LOf ftp://xmlsoft.org/libxml2/${LIBXML2_SOURCE} && \
+    for i in $PWD/*.tar.*; do tar xf $i && rm $i; done
 
 ENV LD_LIBRARY_PATH="/var/task/build/cache/lib64:/var/task/build/cache/lib"
 
@@ -95,8 +96,7 @@ RUN sh ${CMAKE_SOURCE} --skip-license --prefix=${CACHE_DIR} && \
 	sh ${CMAKE_SOURCE} --skip-license
 
 # Install libffi
-RUN tar xf ${LIBFFI_SOURCE} && \
-	cd libffi-* && \
+RUN cd libffi-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath && \
 	make && \
 	make install
@@ -106,14 +106,12 @@ ENV CC="clang -fPIC"
 
 # Install bzip2
 # Replace gcc with gcc -fPIC in bzip2 Makefile as CC is not respected
-RUN tar xf ${BZIP2_SOURCE} && \
-	cd bzip2-* && \
+RUN cd bzip2-* && \
     sed -i 's/gcc/gcc -fPIC/g' Makefile && \
 	make PREFIX=${CACHE_DIR} install
 
 # Install libuuid from util-linux
-RUN tar xf ${UTIL_LINUX_SOURCE} && \
-	cd util-linux-* && \
+RUN cd util-linux-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
 		--disable-all-programs \
 		--enable-libuuid && \
@@ -137,14 +135,12 @@ RUN tar xf ${UTIL_LINUX_SOURCE} && \
 
 ENV LDFLAGS="-L${CACHE_DIR}/lib -L${CACHE_DIR}/lib64"
 
-RUN tar xf ${LIBPNG_SOURCE} && \
-    cd libpng-* && \
+RUN cd libpng-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath && \
     make && \
     make install
 
-RUN tar xf ${LIBTIFF_SOURCE} && \
-    cd tiff-* && \
+RUN cd tiff-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
 		--disable-jpeg \
 		--disable-old-jpeg \
@@ -154,22 +150,19 @@ RUN tar xf ${LIBTIFF_SOURCE} && \
 	make && \
 	make install
 
-RUN tar xf ${GLIB_SOURCE} && \
-    cd glib-* && \
+RUN cd glib-* && \
     meson --prefix ${CACHE_DIR} _build -Dman=false -Dinternal_pcre=true -Dselinux=disabled \
         -Ddefault_library=static -Dnls=disabled -Dlibmount=false -Dxattr=false && \
     ninja-build -v -C _build && \
     ninja-build -C _build install
 
-RUN tar xf ${GDK_PIXBUF_SOURCE} && \
-    cd gdk-pixbuf-* && \
+RUN cd gdk-pixbuf-* && \
     meson --prefix ${CACHE_DIR} _build -Dgir=false -Dx11=false -Ddefault_library=static \
         -Drelocatable=true -Dgio_sniffing=false -Dbuiltin_loaders=none -Dinstalled_tests=false && \
     ninja-build -C _build && \
     ninja-build -C _build install
 
-RUN tar xf ${LIBXML2_SOURCE} && \
-	cd libxml2-* && \
+RUN cd libxml2-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
 		--without-history \
 		--without-python && \
@@ -178,7 +171,7 @@ RUN tar xf ${LIBXML2_SOURCE} && \
 
 ENV FREETYPE_WITHOUT_HB_DIR=${PROJECT_ROOT}/build/freetype-${FREETYPE_VERSION}-without-harfbuzz
 
-RUN tar xf ${FREETYPE_SOURCE} -C /tmp && \
+RUN cp -r freetype-${FREETYPE_VERSION} /tmp/ && \
 	rm -rf ${FREETYPE_WITHOUT_HB_DIR} && \
 	mv /tmp/freetype-${FREETYPE_VERSION} ${FREETYPE_WITHOUT_HB_DIR} && \
 	cd ${FREETYPE_WITHOUT_HB_DIR} && \
@@ -187,30 +180,26 @@ RUN tar xf ${FREETYPE_SOURCE} -C /tmp && \
 	MAKEFLAGS="" make && \
 	make install
 
-RUN	tar xf ${FONTCONFIG_SOURCE} && \
-	cd fontconfig-* && \
+RUN	cd fontconfig-* && \
 	./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
         --enable-libxml2 --disable-docs && \
 	make && \
 	make install
 
-RUN tar xf ${HARFBUZZ_SOURCE} && \
-	cd harfbuzz-* && \
+RUN cd harfbuzz-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
         --with-freetype --with-glib --with-fontconfig && \
 	make && \
 	make install
 
-RUN tar xf ${FREETYPE_SOURCE} && \
-	cd freetype-* && \
+RUN cd freetype-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
         --with-harfbuzz --with-png && \
 	make distclean clean && \
 	make && \
 	make install
 
-RUN	tar xf ${LIBCROCO_SOURCE} && \
-	cd libcroco-* && \
+RUN	cd libcroco-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
 		--disable-gtk-doc \
 		--disable-gtk-doc-html && \
@@ -224,8 +213,7 @@ RUN tar xf ${PIXMAN_SOURCE} && \
 	make && \
 	make install
 
-RUN tar xf ${CAIRO_SOURCE} && \
-    cd cairo-* && \
+RUN cd cairo-* && \
     ./configure --prefix ${CACHE_DIR} --disable-shared --enable-static --disable-dependency-tracking --disable-rpath \
 		--disable-gtk-doc \
 		--disable-gtk-doc-html \
@@ -260,8 +248,7 @@ RUN tar xf ${CAIRO_SOURCE} && \
 ENV LDFLAGS="-lpng -luuid -lxml2 -lz -lbz2 -lpixman-1 ${LDFLAGS}"
 
 # Should compile without xlib support, but xlib is found for some reason
-RUN tar xf ${PANGO_SOURCE} && \
-	cd pango-${PANGO_VERSION} && \
+RUN cd pango-${PANGO_VERSION} && \
     sed -i 's/xlib/xlibdontfindthis/g' meson.build && \
     meson --prefix ${CACHE_DIR} _build -Dgir=false -Ddefault_library=static && \
     ninja-build -C _build && \
@@ -279,8 +266,7 @@ ENV CC="clang -fPIC" \
 
 # RUN curl -LOf https://ftp.gnome.org/pub/GNOME/sources/librsvg/${LIBRSVG_MINOR_VERSION}/${LIBRSVG_SOURCE}
 
-RUN	tar xf ${LIBRSVG_SOURCE} && \
-    cd librsvg-* && \
+RUN	cd librsvg-* && \
     ./configure \
         --disable-introspection \
         --enable-option-checking \
