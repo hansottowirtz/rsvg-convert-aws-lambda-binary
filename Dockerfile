@@ -263,7 +263,7 @@ ENV LIBRSVG_VERSION=2.45.6
 ENV LIBRSVG_MINOR_VERSION=2.45
 ENV LIBRSVG_SOURCE=librsvg-${LIBRSVG_VERSION}.tar.xz 
 
-RUN curl -LOf https://ftp.gnome.org/pub/GNOME/sources/librsvg/${LIBRSVG_MINOR_VERSION}/${LIBRSVG_SOURCE} \
+RUN curl -LOf https://ftp.gnome.org/pub/GNOME/sources/librsvg/${LIBRSVG_MINOR_VERSION}/${LIBRSVG_SOURCE} && \
     tar xf ${LIBRSVG_SOURCE}
 
 RUN	cd librsvg-* && \
