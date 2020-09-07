@@ -1,3 +1,5 @@
+# This repo has moved to [bubblydoo/librsvg-lambda-layer](https://github.com/bubblydoo/librsvg-lambda-layer)
+
 # LibRSVG for AWS Lambda
 
 Scripts to compile LibRSVG for AWS Lambda instances powered by Amazon Linux 2.x.
